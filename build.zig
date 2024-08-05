@@ -5,6 +5,36 @@ const arbor = @import("arbor");
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) !void {
+
+    // Standard target options allows the person running `zig build` to choose
+    // what target to build for. Here we do not override the defaults, which
+    // means any target is allowed, and the default is native. Other options
+    // for restricting supported target set are available.
+    const target = b.standardTargetOptions(.{});
+
+    // Standard optimization options allow the person running `zig build` to select
+    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
+    // set a preferred release mode, allowing the user to decide how to optimize.
+    const optimize = b.standardOptimizeOption(.{});
+
+    // b.createModule(.{ .root_source_file = b.path("src/mindrot_ent.zig") });
+
+    // const lib = b.addStaticLibrary(.{
+    //     .name = "assets",
+    //     .root_source_file = b.path("src/plugin.zig"),
+    //     .optimize = optimize,
+    //     .target = target,
+    // });
+    // lib.root_module.addCSourceFile(.{ .file = b.path("build/assets/mindrot_ent.c") });
+    // lib.root_module.addIncludePath(b.path("build/assets"));
+    // lib.addCSourceFile(.{ .file = b.path("build/assets/mindrot_ent.c") });
+    // lib.addIncludePath(b.path("build/assets"));
+
+    // This declares intent for the library to be installed into the standard
+    // location when the user invokes the "install" step (the default step when
+    // running `zig build`).
+    // b.installArtifact(lib);
+
     try arbor.addPlugin(b, .{
         .description = .{
             .name = "Mindrot Distortion",
@@ -19,19 +49,9 @@ pub fn build(b: *std.Build) !void {
         },
         .features = arbor.features.EFFECT | arbor.features.STEREO | arbor.features.GUI,
         .root_source_file = "src/plugin.zig",
-        .target = b.standardTargetOptions(.{}),
-        .optimize = b.standardOptimizeOption(.{}),
+        .target = target,
+        .optimize = optimize,
     });
-    // // Standard target options allows the person running `zig build` to choose
-    // // what target to build for. Here we do not override the defaults, which
-    // // means any target is allowed, and the default is native. Other options
-    // // for restricting supported target set are available.
-    // const target = b.standardTargetOptions(.{});
-
-    // // Standard optimization options allow the person running `zig build` to select
-    // // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // // set a preferred release mode, allowing the user to decide how to optimize.
-    // const optimize = b.standardOptimizeOption(.{});
 
     // const lib = b.addStaticLibrary(.{
     //     .name = "learn-arbor",
@@ -41,11 +61,6 @@ pub fn build(b: *std.Build) !void {
     //     .target = target,
     //     .optimize = optimize,
     // });
-
-    // // This declares intent for the library to be installed into the standard
-    // // location when the user invokes the "install" step (the default step when
-    // // running `zig build`).
-    // b.installArtifact(lib);
 
     // const exe = b.addExecutable(.{
     //     .name = "learn-arbor",

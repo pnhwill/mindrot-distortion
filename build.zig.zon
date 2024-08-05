@@ -32,6 +32,7 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        // "build/assets/mindrot_ent.c",
         // For example...
         //"LICENSE",
         //"README.md",

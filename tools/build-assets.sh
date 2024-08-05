@@ -1,7 +1,15 @@
 #!/bin/zsh
 
-mkdir ../build
+set -x
 
-clang -o ../build/png2c ./png2c.c
+SCRIPT_DIR="${0:A:h}"
 
-../build/png2c -n mindrot_ent -o ../build/mindrot_ent.c ../assets/mindrot_ent.png
+mkdir -p "$SCRIPT_DIR/../build/tools"
+mkdir -p "$SCRIPT_DIR/../build/assets"
+
+clang -o "$SCRIPT_DIR/../build/tools/png2c" "$SCRIPT_DIR/png2c.c" -lm
+
+"$SCRIPT_DIR/../build/tools/png2c" \
+    -n mindrot_ent \
+    -o "$SCRIPT_DIR/../build/assets/mindrot_ent.c" \
+    "$SCRIPT_DIR/../assets/mindrot_ent.png"
