@@ -15,8 +15,13 @@ const ArborExample = @This();
 const allocator = std.heap.c_allocator;
 
 const Mode = enum {
+    Hard,
+    Quintic,
+    Cubic,
+    Tanh,
+    Arctan,
+    Sigmoid,
     Vintage,
-    Modern,
     Apocalypse,
 };
 
@@ -24,7 +29,7 @@ const plugin_params = &[_]arbor.Parameter{
     param.Float("Gain", 0, 30, 0, .{ .flags = .{}, .value_to_text = dbValToText }),
     param.Float("Out", -12, 12, 0, .{ .flags = .{}, .value_to_text = dbValToText }),
     param.Float("Freq", 20, 18e3, 1500, .{ .flags = .{}, .value_to_text = hzValToText }),
-    param.Choice("Mode", Mode.Vintage, .{ .flags = .{} }), // Optionally pass a list of names.
+    param.Choice("Mode", Mode.Hard, .{ .flags = .{} }), // Optionally pass a list of names.
 };
 
 filter: dsp.Filter,
@@ -82,20 +87,92 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
     const out_gain = std.math.pow(f32, 10, out_gain_db * 0.05);
 
     const intermediate = buffer.output;
-    for (buffer.input, 0..) |ch, ch_idx| {
-        var out = intermediate[ch_idx];
-        for (ch, 0..) |sample, idx| {
-            // For performance reasons, you wouldn't want to branch inside
-            // this loop, but...example.
-            switch (mode) {
-                .Modern => {
+
+    // For performance reasons, don't branch inside this loop.
+    switch (mode) {
+        .Hard => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
                     var x = sample;
                     x *= in_gain;
-                    x = @min(1, @max(-1, x)); // Clamp.
+                    // Clamp.
+                    x = @min(1, @max(-1, x));
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Quintic => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
+                    var x = sample;
+                    x *= in_gain;
+                    x = @min(1, @max(-1, x));
                     // Soft clip.
-                    out[idx] = (5.0 / 4.0) * (x - (x * x * x * x * x) / 5) * out_gain;
-                },
-                .Vintage => {
+                    x = (5 / 4) * (x - (x * x * x * x * x) / 5);
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Cubic => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
+                    var x = sample;
+                    x *= in_gain;
+                    x = @min(1, @max(-1, x));
+                    x = (3 / 2) * (x - (x * x * x) / 3);
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Tanh => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
+                    var x = sample;
+                    x *= in_gain;
+                    x = @min(1, @max(-1, x));
+                    x = std.math.tanh(std.math.pi * x);
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Arctan => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
+                    var x = sample;
+                    x *= in_gain;
+                    x = @min(1, @max(-1, x));
+                    x = (2 / 3) * std.math.atan(4 * std.math.pi * x);
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Sigmoid => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
+                    var x = sample;
+                    x *= in_gain;
+                    x = @min(1, @max(-1, x));
+                    x = 1 / (1 + @exp(-12 * (x - 0.5)));
+                    x *= out_gain;
+                    out[idx] = x;
+                }
+            }
+        },
+        .Vintage => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
                     var x = sample;
                     x *= in_gain;
                     // Asymmetric.
@@ -105,8 +182,13 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
                     } else x = (3.0 / 2.0) * std.math.tanh(x); // Asymptotes at 1.
                     x *= out_gain;
                     out[idx] = x;
-                },
-                .Apocalypse => {
+                }
+            }
+        },
+        .Apocalypse => {
+            for (buffer.input, 0..) |ch, ch_idx| {
+                var out = intermediate[ch_idx];
+                for (ch, 0..) |sample, idx| {
                     var x = sample;
                     x *= in_gain * 2;
                     // Sine fold?
@@ -116,9 +198,9 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
                     x = @min(1, @max(-1, x));
                     x *= out_gain;
                     out[idx] = x;
-                },
+                }
             }
-        }
+        },
     }
 
     // Filter
