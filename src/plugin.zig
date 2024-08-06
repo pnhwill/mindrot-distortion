@@ -34,7 +34,8 @@ const plugin_params = &[_]arbor.Parameter{
     param.Float("Gain", 0, 30, 0, .{ .flags = .{}, .value_to_text = dbValToText }),
     param.Float("Out", -12, 12, 0, .{ .flags = .{}, .value_to_text = dbValToText }),
     param.Float("Freq", 20, 18e3, 1500, .{ .flags = .{}, .value_to_text = hzValToText }),
-    param.Choice("Mode", Mode.Hard, .{ .flags = .{} }), // Optionally pass a list of names.
+    param.Choice("Top Mode", Mode.Hard, .{ .flags = .{} }), // Optionally pass a list of names.
+    param.Choice("Bottom Mode", Mode.Hard, .{ .flags = .{} }), // Optionally pass a list of names.
 };
 
 filter: dsp.Filter,
@@ -86,204 +87,25 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
 
     const in_gain_db = plugin.getParamValue(f32, "Gain");
     const out_gain_db = plugin.getParamValue(f32, "Out");
-    const mode = plugin.getParamValue(Mode, "Mode");
+    // const mode = plugin.getParamValue(Mode, "Top Mode");
+    const top_mode = plugin.getParamValue(Mode, "Top Mode");
+    const bottom_mode = plugin.getParamValue(Mode, "Bottom Mode");
 
     const in_gain = math.pow(f32, 10, in_gain_db * 0.05);
     const out_gain = math.pow(f32, 10, out_gain_db * 0.05);
 
     const intermediate = buffer.output;
 
-    // For performance reasons, don't branch inside this loop.
-    switch (mode) {
-        .Hard => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    // Clamp.
-                    x = @min(1, @max(-1, x));
-                    x *= out_gain;
-                    out[idx] = x;
-                }
+    // For performance reasons, we shouldn't branch inside this loop. But oh well.
+    for (buffer.input, 0..) |ch, ch_idx| {
+        var out = intermediate[ch_idx];
+        for (ch, 0..) |sample, idx| {
+            if (sample >= 0) {
+                out[idx] = distortSample(sample, in_gain, out_gain, top_mode);
+            } else {
+                out[idx] = distortSample(sample, in_gain, out_gain, bottom_mode);
             }
-        },
-        .Quintic => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    // Soft clip.
-                    x = (5.0 / 4.0) * (x - (x * x * x * x * x) / 5.0);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Cubic => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = (3.0 / 2.0) * (x - (x * x * x) / 3.0);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Sine => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = math.sin((math.pi / 2.0) * x);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Sigmoid => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = (2.0 / (1 + @exp(-6 * x))) - 1;
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Tanh => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = math.tanh(math.pi * x);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Arctan => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = (2.0 / 3.0) * math.atan(4 * math.pi * x);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .SineFold => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = math.sin((math.pi / 2.0) * x);
-                    x = @min(1, @max(-1, x));
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .Tan => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = @min(1, @max(-1, x));
-                    x = math.tan((math.pi / 4.0) * x);
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .TanFold => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = math.tan((math.pi / 4.0) * x);
-                    x = @min(1, @max(-1, x));
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .SinTan => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = math.sin(math.tan(x));
-                    x = @min(1, @max(-1, x));
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        .TanSin => {
-            for (buffer.input, 0..) |ch, ch_idx| {
-                var out = intermediate[ch_idx];
-                for (ch, 0..) |sample, idx| {
-                    var x = sample;
-                    x *= in_gain;
-                    x = math.tan(math.sin(x));
-                    x = @min(1, @max(-1, x));
-                    x *= out_gain;
-                    out[idx] = x;
-                }
-            }
-        },
-        // .Vintage => {
-        //     for (buffer.input, 0..) |ch, ch_idx| {
-        //         var out = intermediate[ch_idx];
-        //         for (ch, 0..) |sample, idx| {
-        //             var x = sample;
-        //             x *= in_gain;
-        //             // Asymmetric.
-        //             if (x < 0) {
-        //                 x = @max(-1, x);
-        //                 x = (3.0 / 2.0) * (x - (x * x * x) / 3.0);
-        //             } else x = (3.0 / 2.0) * math.tanh(x);
-        //             x *= out_gain;
-        //             out[idx] = x;
-        //         }
-        //     }
-        // },
-        // .Apocalypse => {
-        //     for (buffer.input, 0..) |ch, ch_idx| {
-        //         var out = intermediate[ch_idx];
-        //         for (ch, 0..) |sample, idx| {
-        //             var x = sample;
-        //             x *= in_gain * 2;
-        //             // Sine fold?
-        //             x -= @abs(@sin(x / math.two_sqrtpi));
-        //             x += @abs(@sin(x / math.pi));
-        //             x = 2 * @sin(x / math.tau);
-        //             x = @min(1, @max(-1, x));
-        //             x *= out_gain;
-        //             out[idx] = x;
-        //         }
-        //     }
-        // },
+        }
     }
 
     // Filter
@@ -297,6 +119,64 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
     }
 
     self.filter.process(intermediate, buffer.output);
+}
+
+fn distortSample(sample: f32, in_gain: f32, out_gain: f32, mode: Mode) f32 {
+    var x = sample;
+    x *= in_gain;
+    switch (mode) {
+        .Hard => {
+            // Clamp.
+            x = math.clamp(x, -1, 1);
+        },
+        .Quintic => {
+            x = math.clamp(x, -1, 1);
+            // Soft clip.
+            x = (5.0 / 4.0) * (x - (x * x * x * x * x) / 5.0);
+        },
+        .Cubic => {
+            x = math.clamp(x, -1, 1);
+            x = (3.0 / 2.0) * (x - (x * x * x) / 3.0);
+        },
+        .Sine => {
+            x = math.clamp(x, -1, 1);
+            x = math.sin((math.pi / 2.0) * x);
+        },
+        .Sigmoid => {
+            x = math.clamp(x, -1, 1);
+            x = (2.0 / (1 + @exp(-6 * x))) - 1;
+        },
+        .Tanh => {
+            x = math.clamp(x, -1, 1);
+            x = math.tanh(math.pi * x);
+        },
+        .Arctan => {
+            x = math.clamp(x, -1, 1);
+            x = (2.0 / 3.0) * math.atan(4 * math.pi * x);
+        },
+        .SineFold => {
+            x = math.sin((math.pi / 2.0) * x);
+            x = math.clamp(x, -1, 1);
+        },
+        .Tan => {
+            x = math.clamp(x, -1, 1);
+            x = math.tan((math.pi / 4.0) * x);
+        },
+        .TanFold => {
+            x = math.tan((math.pi / 4.0) * x);
+            x = math.clamp(x, -1, 1);
+        },
+        .SinTan => {
+            x = math.sin(math.tan(x));
+            x = math.clamp(x, -1, 1);
+        },
+        .TanSin => {
+            x = math.tan(math.sin(x));
+            x = math.clamp(x, -1, 1);
+        },
+    }
+    x *= out_gain;
+    return x;
 }
 
 fn dbValToText(value: f32, buf: []u8) usize {
@@ -331,6 +211,8 @@ const border_color = draw.Color{ .r = 44, .g = 217, .b = 89, .a = 0xff };
 
 const TITLE = "MINDROT";
 
+const SLIDER_COUNT = 3;
+
 // Export an entry to our GUI implementation.
 export fn gui_init(plugin: *arbor.Plugin) void {
     const gui = arbor.Gui.init(plugin.allocator, .{
@@ -360,8 +242,10 @@ export fn gui_init(plugin: *arbor.Plugin) void {
             log.err("{!}\n", .{e}, @src());
             return;
         };
-        if (!std.mem.eql(u8, param_info.name, "Mode")) {
-            const width = (WIDTH / 3) - (slider_gap * 2);
+        if (!std.mem.eql(u8, param_info.name, "Top Mode") and
+            !std.mem.eql(u8, param_info.name, "Bottom Mode"))
+        {
+            const width = (WIDTH / SLIDER_COUNT) - (slider_gap * 2);
             gui.addComponent(.{
                 // Given the gui.allocator, the memory will be cleaned up
                 // on global GUI deinit. Otherwise, deallocate manually.
@@ -369,7 +253,7 @@ export fn gui_init(plugin: *arbor.Plugin) void {
                 .interface = arbor.Gui.Slider.interface,
                 .value = param_info.getNormalizedValue(plugin.params[i]),
                 .bounds = .{
-                    .x = @intCast(i * (WIDTH / 3) + slider_gap),
+                    .x = @intCast(i * (WIDTH / SLIDER_COUNT) + slider_gap),
                     .y = (HEIGHT / 2) - (slider_height / 2),
                     .width = width,
                     .height = slider_height,
@@ -387,7 +271,7 @@ export fn gui_init(plugin: *arbor.Plugin) void {
                     },
                 },
             });
-        } else { // Mode menu.
+        } else { // Mode menus.
             const menu_width = WIDTH / 2;
             const menu_height = HEIGHT / 4;
             const bot_pad = 50;
@@ -399,7 +283,7 @@ export fn gui_init(plugin: *arbor.Plugin) void {
                 .interface = arbor.Gui.Menu.interface,
                 .value = param_info.getNormalizedValue(plugin.params[i]), // Don't bother normalizing since we just care about the int.
                 .bounds = .{
-                    .x = (WIDTH - menu_width) - menu_width / 2,
+                    .x = @intCast((i - SLIDER_COUNT) * menu_width),
                     .y = HEIGHT - menu_height - bot_pad,
                     .width = menu_width,
                     .height = menu_height,
@@ -407,7 +291,7 @@ export fn gui_init(plugin: *arbor.Plugin) void {
                 .background_color = slider_dark,
                 .label = .{
                     .text = param_info.name,
-                    .height = menu_height / 4,
+                    .height = menu_height / 8,
                     .color = draw.Color.WHITE,
                 },
             });
