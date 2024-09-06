@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) !void {
             .contact = "mindrotsound@pm.me",
             .description = "The sane mind begets a dormant soul.\nBehold, as the mind rots and the soul awakens.",
         },
-        .features = arbor.features.EFFECT | arbor.features.STEREO | arbor.features.GUI,
+        .features = arbor.features.EFFECT | arbor.features.STEREO | arbor.features.GUI | arbor.features.DISTORTION,
         .root_source_file = "src/plugin.zig",
         .target = target,
         .optimize = optimize,

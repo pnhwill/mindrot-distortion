@@ -9,7 +9,7 @@ const log = arbor.log;
 const dsp = arbor.dsp;
 const Plugin = arbor.Plugin;
 
-const ArborExample = @This();
+const MindrotDistortion = @This();
 
 const allocator = std.heap.c_allocator;
 
@@ -42,7 +42,7 @@ filter: dsp.Filter,
 last_cutoff: f32,
 
 export fn init() *Plugin {
-    const self = allocator.create(ArborExample) catch |e| {
+    const self = allocator.create(MindrotDistortion) catch |e| {
         log.fatal("{!}\n", .{e}, @src());
     };
     self.* = .{
@@ -69,7 +69,7 @@ fn deinit(plugin: *Plugin) void {
     // If we set user data in init(), you would free it here.
 
     // Free your user data.
-    const self = plugin.getUser(ArborExample);
+    const self = plugin.getUser(MindrotDistortion);
     self.filter.deinit();
     allocator.destroy(self);
 }
@@ -77,7 +77,7 @@ fn deinit(plugin: *Plugin) void {
 fn prepare(plugin: *Plugin, sample_rate: f32, max_frames: u32) void {
     plugin.sample_rate = sample_rate;
     plugin.max_frames = max_frames;
-    const self = plugin.getUser(ArborExample);
+    const self = plugin.getUser(MindrotDistortion);
     self.filter.setSampleRate(sample_rate);
 }
 
@@ -110,7 +110,7 @@ fn process(plugin: *Plugin, buffer: arbor.AudioBuffer(f32)) void {
 
     // Filter
 
-    const self = plugin.getUser(ArborExample);
+    const self = plugin.getUser(MindrotDistortion);
     const cutoff = plugin.getParamValue(f32, "Freq");
     if (self.last_cutoff != cutoff) {
         // TODO: Param smoothing.
